@@ -136,10 +136,11 @@ class SecretsGUI(tk.Tk):
         self.wait_window(top)
         return result[0]
 
-    def __init__(self, timeout_minutes=60.0, dark_mode=False):
+    def __init__(self, timeout_minutes=60.0, dark_mode=True, additional_ep_files=None):
         super().__init__()
         self.timeout_minutes = timeout_minutes
         self.dark_mode = dark_mode
+        self.additional_ep_files = set(additional_ep_files) if additional_ep_files else set()
         self.title("Harbor")
         self.geometry("600x450")
         
@@ -188,6 +189,9 @@ class SecretsGUI(tk.Tk):
         file_menu = tk.Menu(file_menubtn, tearoff=0, bg=self.bg_color, fg=self.fg_color, activebackground=self.button_bg, activeforeground=self.fg_color)
         file_menu.add_command(label="Import CSV", command=self.import_csv)
         file_menu.add_command(label="Export Selection / Group", command=self.export_group)
+        file_menu.add_command(label="Save Sample CSV", command=self.save_sample_csv)
+        file_menu.add_separator()
+        file_menu.add_command(label="Add EP File", command=self.add_ep_file)
         file_menubtn.config(menu=file_menu)
 
         # UI Elements for Main App
@@ -202,6 +206,9 @@ class SecretsGUI(tk.Tk):
         self.search_var.trace_add("write", lambda *args: self.on_search())
         search_entry = tk.Entry(search_frame, textvariable=self.search_var, bg=self.entry_bg, fg=self.fg_color, insertbackground=self.fg_color)
         search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+
+        clear_btn = tk.Button(search_frame, text="Clear", command=self.clear_search, bg=self.button_bg, fg=self.fg_color)
+        clear_btn.pack(side=tk.LEFT)
 
         tree_frame = tk.Frame(self.main_frame, bg=self.bg_color)
         tree_frame.pack(pady=10, fill=tk.BOTH, expand=True)
@@ -220,6 +227,13 @@ class SecretsGUI(tk.Tk):
             
             style.configure("Vertical.TScrollbar", background=self.button_bg, troughcolor=self.bg_color, arrowcolor=self.fg_color, bordercolor=self.bg_color)
             style.map("Vertical.TScrollbar", background=[('active', self.entry_bg)])
+
+            style.configure("TCombobox", fieldbackground=self.entry_bg, background=self.button_bg, foreground=self.fg_color, bordercolor=self.bg_color, arrowcolor=self.fg_color)
+            style.map("TCombobox", fieldbackground=[("readonly", self.entry_bg)], selectbackground=[("readonly", self.entry_bg)], selectforeground=[("readonly", self.fg_color)])
+            self.option_add('*TCombobox*Listbox.background', self.entry_bg)
+            self.option_add('*TCombobox*Listbox.foreground', self.fg_color)
+            self.option_add('*TCombobox*Listbox.selectBackground', '#005a9e')
+            self.option_add('*TCombobox*Listbox.selectForeground', self.fg_color)
 
         tree_scroll = ttk.Scrollbar(tree_frame)
         tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
@@ -284,16 +298,43 @@ class SecretsGUI(tk.Tk):
     def on_search(self):
         self.refresh_list(preserve_state=True)
 
+    def clear_search(self):
+        self.search_var.set("")
+        self.refresh_list(preserve_state=False)
+
+    def truncate_path(self, filepath, max_len=45):
+        if len(filepath) <= max_len:
+            return filepath
+        import os
+        filename = os.path.basename(filepath)
+        if len(filename) >= max_len - 5:
+            return "..." + filepath[-(max_len-3):]
+        remaining_len = max_len - len(filename) - 3
+        left_len = remaining_len // 2
+        right_len = remaining_len - left_len
+        return filepath[:left_len] + "..." + filepath[len(filepath) - len(filename) - right_len:]
+
     def refresh_list(self, preserve_state=True):
         search_query = self.search_var.get().lower()
         # Keep track of what was open visually
         open_nodes = []
         if preserve_state and not search_query:
-            open_nodes = [self.secrets_tree.item(child, "text") for child in self.secrets_tree.get_children() 
-                        if self.secrets_tree.item(child, "open")]
-                    
+            open_nodes = [self.secrets_tree.item(child, "tags")[1] for child in self.secrets_tree.get_children()
+                        if self.secrets_tree.item(child, "open") and len(self.secrets_tree.item(child, "tags")) > 1]
+
         self.secrets_tree.delete(*self.secrets_tree.get_children())
-        db_files = glob.glob("*.ep")
+
+        import os
+        db_files_dict = {}
+        for f in glob.glob("*.ep"):
+            db_files_dict[os.path.abspath(f)] = f
+            
+        for f in self.additional_ep_files:
+            abs_f = os.path.abspath(f)
+            if abs_f not in db_files_dict:
+                db_files_dict[abs_f] = f
+                
+        db_files = list(db_files_dict.values())
         
         # If absolutely no database exists, prompt to securely create a default one
         if not db_files:
@@ -313,8 +354,9 @@ class SecretsGUI(tk.Tk):
             
             # Determine visual state based on whether it is unlocked
             db_tag = "unlocked_db" if f in self.savers else "locked_db"
-            db_node = self.secrets_tree.insert("", "end", text=f, tags=("db", f, db_tag), open=is_open)
-            
+            display_name = self.truncate_path(f, max_len=60)
+            db_node = self.secrets_tree.insert("", "end", text=display_name, tags=("db", f, db_tag), open=is_open)
+
             if f in self.savers:
                 self.populate_db_node(db_node, f, search_query)
             else:
@@ -781,6 +823,31 @@ class SecretsGUI(tk.Tk):
             except Exception as e:
                 self.custom_messagebox("Error", f"Failed to delete secret: {e}")
 
+    def add_ep_file(self):
+        filepath = filedialog.askopenfilename(
+            title="Select EP File",
+            filetypes=[("Secrets Files", "*.ep"), ("All Files", "*.*")]
+        )
+        if not filepath: return
+        self.additional_ep_files.add(filepath)
+        self.refresh_list()
+
+    def save_sample_csv(self):
+        filepath = filedialog.asksaveasfilename(
+            title="Save Sample CSV",
+            defaultextension=".csv",
+            initialfile="import_sample.csv",
+            filetypes=[("CSV Files", "*.csv"), ("All Files", "*.*")]
+        )
+        if not filepath: return
+        sample_csv = "Group,Name,Value,URL\nSocial,Twitter,my_password123,https://twitter.com\nWork,Email,secure_pwd!,https://mail.work.com\n"
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(sample_csv)
+            self.show_toast(f"Sample CSV saved to {filepath}")
+        except Exception as e:
+            self.custom_messagebox("Error", f"Failed to save sample CSV: {e}")
+
     def import_csv(self):
         filepath = filedialog.askopenfilename(
             title="Select CSV to Import",
@@ -1187,7 +1254,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Harbor GUI")
     parser.add_argument("--timeout", type=float, default=60.0, help="Custom lock timeout in minutes")
     parser.add_argument("--example-csv", action="store_true", help="Outputs a sample import CSV and quits")
-    parser.add_argument("--dark-mode", action="store_true", help="Launch the application in Dark Mode")
+    parser.add_argument("--light-mode", action="store_true", help="Launch the application in Light Mode")
+    parser.add_argument("--ep-file", action="append", dest="ep_files", help="Path to an additional .ep file to load. Can be used multiple times.")
     args = parser.parse_args()
 
     if args.example_csv:
@@ -1197,5 +1265,5 @@ if __name__ == "__main__":
         print("Created import_sample.csv")
         sys.exit(0)
 
-    app = SecretsGUI(timeout_minutes=args.timeout, dark_mode=args.dark_mode)
+    app = SecretsGUI(timeout_minutes=args.timeout, dark_mode=not args.light_mode, additional_ep_files=args.ep_files)
     app.mainloop()

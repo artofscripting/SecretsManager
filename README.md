@@ -67,6 +67,8 @@ options:
   -h, --help            show this help message and exit
   --timeout TIMEOUT     Custom lock timeout in minutes (default is 60.0)
   --example-csv         Outputs a sample import CSV (import_sample.csv) and quits
+  --light-mode          Launch the application in light mode
+  --ep-file PATH        Path to an additional .ep file to load. Can be repeated.
 ```
 
 1. **Vault Interaction:** When launching, the app will scan the local directory for `.ep` files. If none exist, it will prompt you to create a secure `default.ep`.
