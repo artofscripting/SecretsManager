@@ -30,7 +30,7 @@ class SecretsGUI(tk.Tk):
         super().__init__()
         self.timeout_minutes = timeout_minutes
         self.dark_mode = dark_mode
-        self.title("Secrets Manager")
+        self.title("Harbor")
         self.geometry("600x450")
         
         # Color Theme configurations
@@ -1076,7 +1076,7 @@ class SecretsGUI(tk.Tk):
             pystray.MenuItem('Show', self.show_window, default=True),
             pystray.MenuItem('Quit', self.quit_window)
         )
-        self.tray_icon = pystray.Icon("SecretsManager", image, "Secrets Manager", menu)
+        self.tray_icon = pystray.Icon("Harbor", image, "Harbor", menu)
         # Run in a separate thread so it doesn't block tkinter mainloop
         import threading
         threading.Thread(target=self.tray_icon.run, daemon=True).start()
@@ -1096,7 +1096,7 @@ class SecretsGUI(tk.Tk):
 
 if __name__ == "__main__":
     import sys
-    parser = argparse.ArgumentParser(description="Secrets Manager GUI")
+    parser = argparse.ArgumentParser(description="Harbor GUI")
     parser.add_argument("--timeout", type=float, default=60.0, help="Custom lock timeout in minutes")
     parser.add_argument("--example-csv", action="store_true", help="Outputs a sample import CSV and quits")
     parser.add_argument("--dark-mode", action="store_true", help="Launch the application in Dark Mode")
