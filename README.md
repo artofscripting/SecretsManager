@@ -52,9 +52,20 @@ It is recommended to use a virtual environment.
 
 ## Usage
 
-### Using the GUI
+### Running the Executable (Recommended)
 
-To launch the graphical interface, run:
+You can run Harbor as a standalone application without installing Python or any dependencies.
+1. Download the latest `Harbor.exe` from the [Releases Page](https://github.com/artofscripting/SecretsManager/releases/tag/Release) (or find it in the `dist/` directory if you built it yourself).
+2. Double-click `Harbor.exe` to launch the application.
+
+*Note: You can also pass the same command-line properties to the executable using a terminal or shortcut properties:*
+```bash
+.\Harbor.exe --light-mode --timeout 30 --ep-file C:\Backups\old_secrets.ep
+```
+
+### Using the Python GUI
+
+To launch the graphical interface from source, run:
 
 ```bash
 python secrets_gui.py
