@@ -2,6 +2,8 @@ import os
 import json
 import base64
 import getpass
+import time
+from datetime import datetime
 from typing import Optional
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -14,13 +16,7 @@ except ImportError:
     pass
 
 class SecretsSaver:
-    def __init__(self, filename="secrets.db", db_url: Optional[str] = None, key: Optional[str] = None):
-        """
-        Initialize the SecretsSaver.
-        Provide db_url to use a remote database (e.g., PostgreSQL or MSSQL).
-        Example: db_url="postgresql+psycopg2://user:password@localhost:5432/mydb"
-                 db_url="mssql+pyodbc://user:password@localhost/mydb?driver=ODBC+Driver+17+for+SQL+Server"
-        """
+    def __init__(self, filename="main.ep", db_url: Optional[str] = None, key: Optional[str] = None):
         self.filename = filename
         self.db_url = db_url
         self._key = key.encode('utf-8') if key else None
@@ -136,6 +132,42 @@ class SecretsSaver:
                 self._load()
             else:
                 self._data = {}
+                
+        # Migrate flat struct to structured payload
+        if "secrets" not in self._data:
+            old_data = self._data
+            
+            new_secrets = {}
+            for k, v in old_data.items():
+                if isinstance(v, dict) and "group" in v and "value" in v:
+                    new_secrets[f"{v['group']}::{k}"] = v
+                else:
+                    new_secrets[f"Default::{k}"] = {"value": v, "group": "Default"}
+                    
+            self._data = {
+                "secrets": new_secrets,
+                "access_logs": [],
+                "config": {"change_password": False},
+                "password_logs": []
+            }
+            # Only save the migration if the file exists or is populated to avoid blank writes
+            if old_data: 
+                self._save()
+        else:
+            migrated = False
+            new_secrets = {}
+            for k, v in self._data["secrets"].items():
+                if "::" not in k:
+                    migrated = True
+                    group = v.get("group", "Default") if isinstance(v, dict) else "Default"
+                    val = v if isinstance(v, dict) else {"value": v, "group": group}
+                    new_secrets[f"{group}::{k}"] = val
+                else:
+                    new_secrets[k] = v
+            
+            if migrated:
+                self._data["secrets"] = new_secrets
+                self._save()
 
     def _save(self):
         self._ensure_loaded()
@@ -155,21 +187,87 @@ class SecretsSaver:
         
         self._save_raw(content)
 
-    def set_secret(self, key: str, value: str):
-        """Sets a secret in the database."""
-        self._ensure_loaded()
-        self._data[key] = value
+    def log_access(self, name: str):
+        timestamp = datetime.now().isoformat()
+        if "access_logs" not in self._data:
+            self._data["access_logs"] = []
+        self._data["access_logs"].append({"time": timestamp, "secret": name})
+        self._save()
+        
+    def log_password_change(self):
+        timestamp = datetime.now().isoformat()
+        if "password_logs" not in self._data:
+            self._data["password_logs"] = []
+        self._data["password_logs"].append({"time": timestamp, "action": "password_changed"})
         self._save()
 
-    def get_secret(self, key: str) -> str:
-        """Gets a secret from the database."""
+    def get_config(self, key: str, default=None):
         self._ensure_loaded()
-        return self._data.get(key)
+        config = self._data.get("config", {})
+        return config.get(key, default)
         
-    def list_secrets(self) -> list:
-        """Returns a list of keys for stored secrets."""
+    def set_config(self, key: str, value):
         self._ensure_loaded()
-        return list(self._data.keys())
+        if "config" not in self._data:
+            self._data["config"] = {}
+        self._data["config"][key] = value
+        self._save()
+
+    def set_secret(self, name: str, value: str, group: str = "Default", url: str = ""):
+        """Sets a secret in the database."""
+        self._ensure_loaded()
+        self._data["secrets"][f"{group}::{name}"] = {"value": value, "group": group, "url": url}
+        self._save()
+
+    def get_secret(self, name: str, group: str = "Default") -> str:
+        """Gets a secret value from the database."""
+        self._ensure_loaded()
+        val = self._data["secrets"].get(f"{group}::{name}")
+        if isinstance(val, dict):
+            # Record access request seamlessly
+            self.log_access(f"{group}::{name}")
+            return val.get("value")
+        return val
+
+    def delete_secret(self, name: str, group: str = "Default"):
+        """Deletes a secret from the database."""
+        self._ensure_loaded()
+        key = f"{group}::{name}"
+        if key in self._data["secrets"]:
+            del self._data["secrets"][key]
+            self._save()
+
+    def get_secret_group(self, name: str, group: str = "Default") -> str:
+        """Gets a secret's group from the database."""
+        self._ensure_loaded()
+        val = self._data["secrets"].get(f"{group}::{name}")
+        if isinstance(val, dict):
+            return val.get("group", "Default")
+        return "Default"
+
+    def list_secrets(self) -> list:
+        """Returns a list of dicts with name and group for stored secrets."""
+        self._ensure_loaded()
+        secrets = []
+        for key, val in self._data["secrets"].items():
+            if "::" in key:
+                group, name = key.split("::", 1)
+                secrets.append({"name": name, "group": group, "url": val.get("url", "")})
+        return secrets
+
+    def change_key(self, new_key: str):
+        """Changes the encryption key and saves the database."""
+        self._ensure_loaded()
+        if self._key == new_key.encode('utf-8'):
+            raise ValueError("New password cannot be the same as the old password.")
+            
+        self._key = new_key.encode('utf-8')
+        
+        # Remove the force change flag since it was successfully updated
+        self.set_config("change_password", False)
+        
+        self.log_password_change()
+        self._save()
 
     def clear_database(self):
         self._data = {}
