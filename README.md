@@ -1,4 +1,4 @@
-# SecretsManager
+# Harbor
 
 A secure, fully-featured Python desktop application and library for managing secrets. It uses strong encryption (AES-GCM with PBKDF2HMAC key derivation) to securely store your sensitive data, whether in a local file or a remote database.
 
