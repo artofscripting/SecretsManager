@@ -59,6 +59,21 @@ class SecretsGUI(tk.Tk):
                 DWMWA_USE_IMMERSIVE_DARK_MODE = 20
                 value = ctypes.c_int(1)
                 ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ctypes.byref(value), ctypes.sizeof(value))
+                
+                # Make titlebar explicitly black
+                DWMWA_CAPTION_COLOR = 35
+                black = ctypes.c_int(0x000000)
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, ctypes.byref(black), ctypes.sizeof(black))
+                
+                # Make border explicitly black
+                DWMWA_BORDER_COLOR = 34
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ctypes.byref(black), ctypes.sizeof(black))
+                
+                # Make titlebar text explicitly white
+                DWMWA_TEXT_COLOR = 36
+                white = ctypes.c_int(0x00FFFFFF)
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_TEXT_COLOR, ctypes.byref(white), ctypes.sizeof(white))
+                
             except Exception:
                 pass
 
