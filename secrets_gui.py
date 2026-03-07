@@ -26,6 +26,116 @@ except ImportError:
     HAS_PYSTRAY = False
 
 class SecretsGUI(tk.Tk):
+    def apply_window_style(self, window):
+        try:
+            window.iconbitmap(resource_path("favicon.ico"))
+        except tk.TclError:
+            pass
+
+        if not self.dark_mode:
+            return
+        # Attempt to set dark mode on the Windows titlebar
+        try:
+            import ctypes
+            # Force the window to physically render so the OS kernel spawns the HWND mapping
+            window.update() 
+            hwnd = ctypes.windll.user32.GetParent(window.winfo_id())
+            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+            value = ctypes.c_int(1)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ctypes.byref(value), ctypes.sizeof(value))
+            
+            # Make titlebar explicitly black
+            DWMWA_CAPTION_COLOR = 35
+            black = ctypes.c_int(0x000000)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, ctypes.byref(black), ctypes.sizeof(black))
+            
+            # Make border explicitly black
+            DWMWA_BORDER_COLOR = 34
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ctypes.byref(black), ctypes.sizeof(black))
+            
+            # Make titlebar text explicitly white
+            DWMWA_TEXT_COLOR = 36
+            white = ctypes.c_int(0x00FFFFFF)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_TEXT_COLOR, ctypes.byref(white), ctypes.sizeof(white))
+        except Exception:
+            pass
+
+    def custom_askstring(self, title, prompt, show=None, initialvalue="", **kwargs):
+        top = tk.Toplevel(self)
+        top.title(title)
+        top.transient(self)
+        top.grab_set()
+
+        # Center on parent
+        x = self.winfo_x() + (self.winfo_width() // 2) - 150
+        y = self.winfo_y() + (self.winfo_height() // 2) - 75
+        top.geometry(f"300x150+{x}+{y}")
+        self.apply_window_style(top)
+        
+        tk.Label(top, text=prompt, justify=tk.LEFT, wraplength=280).pack(pady=(15, 10), padx=10)
+        
+        entry = tk.Entry(top, width=35, show=show)
+        entry.insert(0, initialvalue)
+        entry.pack(pady=5)
+        entry.focus_set()
+        
+        result = [None]
+        
+        def on_ok(event=None):
+            result[0] = entry.get()
+            top.destroy()
+            
+        def on_cancel(event=None):
+            top.destroy()
+            
+        btn_frame = tk.Frame(top, bg=getattr(self, 'bg_color', 'SystemButtonFace'))
+        btn_frame.pack(pady=10)
+        tk.Button(btn_frame, text="OK", command=on_ok, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Cancel", command=on_cancel, width=10).pack(side=tk.LEFT, padx=5)
+        
+        top.bind("<Return>", on_ok)
+        top.bind("<Escape>", on_cancel)
+        
+        self.wait_window(top)
+        return result[0]
+
+    def custom_messagebox(self, title, message, box_type="info", **kwargs):
+        top = tk.Toplevel(self)
+        top.title(title)
+        top.transient(self)
+        top.grab_set()
+
+        x = self.winfo_x() + (self.winfo_width() // 2) - 150
+        y = self.winfo_y() + (self.winfo_height() // 2) - 75
+        top.geometry(f"300x150+{x}+{y}")
+        self.apply_window_style(top)
+        
+        tk.Label(top, text=message, justify=tk.CENTER, wraplength=280).pack(pady=(20, 15), padx=10, expand=True)
+        
+        result = [False]
+        btn_frame = tk.Frame(top, bg=getattr(self, 'bg_color', 'SystemButtonFace'))
+        btn_frame.pack(pady=10)
+        
+        def on_ok(event=None):
+            result[0] = True
+            top.destroy()
+            
+        def on_cancel(event=None):
+            result[0] = False
+            top.destroy()
+
+        if box_type == "askyesno":
+            tk.Button(btn_frame, text="Yes", command=on_ok, width=10).pack(side=tk.LEFT, padx=5)
+            tk.Button(btn_frame, text="No", command=on_cancel, width=10).pack(side=tk.LEFT, padx=5)
+        else:
+            tk.Button(btn_frame, text="OK", command=on_ok, width=10).pack()
+            
+        top.bind("<Return>", on_ok)
+        top.bind("<Escape>", on_cancel)
+        
+        self.wait_window(top)
+        return result[0]
+
     def __init__(self, timeout_minutes=60.0, dark_mode=False):
         super().__init__()
         self.timeout_minutes = timeout_minutes
@@ -51,31 +161,7 @@ class SecretsGUI(tk.Tk):
             self.option_add("*Menu.background", self.bg_color)
             self.option_add("*Menu.foreground", self.fg_color)
             
-            # Attempt to set dark mode on the Windows titlebar
-            try:
-                import ctypes
-                self.update_idletasks() # Ensure Window has been drawn
-                hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
-                DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-                value = ctypes.c_int(1)
-                ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ctypes.byref(value), ctypes.sizeof(value))
-                
-                # Make titlebar explicitly black
-                DWMWA_CAPTION_COLOR = 35
-                black = ctypes.c_int(0x000000)
-                ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, ctypes.byref(black), ctypes.sizeof(black))
-                
-                # Make border explicitly black
-                DWMWA_BORDER_COLOR = 34
-                ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ctypes.byref(black), ctypes.sizeof(black))
-                
-                # Make titlebar text explicitly white
-                DWMWA_TEXT_COLOR = 36
-                white = ctypes.c_int(0x00FFFFFF)
-                ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_TEXT_COLOR, ctypes.byref(white), ctypes.sizeof(white))
-                
-            except Exception:
-                pass
+            self.apply_window_style(self)
 
         try:
             self.iconbitmap(resource_path("favicon.ico"))
@@ -212,13 +298,13 @@ class SecretsGUI(tk.Tk):
         # If absolutely no database exists, prompt to securely create a default one
         if not db_files:
             self.update()
-            pwd = simpledialog.askstring("Welcome", "No databases found.\nCreate a password for your new 'default.ep':", show="*", parent=self)
+            pwd = self.custom_askstring("Welcome", "No databases found.\nCreate a password for your new 'default.ep':", show="*", parent=self)
             if pwd:
                 try:
                     SecretsSaver(filename="default.ep", key=pwd)
                     db_files = ["default.ep"]
                 except Exception as e:
-                    messagebox.showerror("Error", f"Failed to create default.ep: {e}", parent=self)
+                    self.custom_messagebox("Error", f"Failed to create default.ep: {e}", parent=self)
         
         for f in db_files:
             # We treat the db file itself as a group container
@@ -269,7 +355,7 @@ class SecretsGUI(tk.Tk):
         
         if db_name not in self.savers:
             self.update()
-            pwd = simpledialog.askstring("Unlock", f"Enter password for {db_name}:", show="*", parent=self)
+            pwd = self.custom_askstring("Unlock", f"Enter password for {db_name}:", show="*", parent=self)
             if not pwd:
                 self.secrets_tree.item(item_id, open=False)
                 return
@@ -279,36 +365,36 @@ class SecretsGUI(tk.Tk):
                 
                 # Check if password change is forced
                 if saver.get_config("change_password"):
-                    messagebox.showinfo("Security Requirement", f"The database '{db_name}' requires a password reset before it can be accessed.", parent=self)
+                    self.custom_messagebox("Security Requirement", f"The database '{db_name}' requires a password reset before it can be accessed.", parent=self)
                     
                     while True:
                         self.update()
-                        new_pwd = simpledialog.askstring("Forced Password Reset", f"Enter NEW password for {db_name}:", show="*", parent=self)
+                        new_pwd = self.custom_askstring("Forced Password Reset", f"Enter NEW password for {db_name}:", show="*", parent=self)
                         if not new_pwd:
                             self.secrets_tree.item(item_id, open=False)
                             return # Cancelled unlock entirely
                             
-                        confirm_pwd = simpledialog.askstring("Forced Password Reset", f"Confirm NEW password for {db_name}:", show="*", parent=self)
+                        confirm_pwd = self.custom_askstring("Forced Password Reset", f"Confirm NEW password for {db_name}:", show="*", parent=self)
                         if new_pwd != confirm_pwd:
-                            messagebox.showwarning("Warning", "Passwords do not match! Try again.", parent=self)
+                            self.custom_messagebox("Warning", "Passwords do not match! Try again.", parent=self)
                             continue
                             
                         try:
                             saver.change_key(new_pwd)
-                            messagebox.showinfo("Success", f"Password for {db_name} changed successfully.", parent=self)
+                            self.custom_messagebox("Success", f"Password for {db_name} changed successfully.", parent=self)
                             break
                         except ValueError as ve: # Catches the same-password exception explicitly
-                            messagebox.showerror("Error", str(ve), parent=self)
+                            self.custom_messagebox("Error", str(ve), parent=self)
                             continue
                         except Exception as e:
-                            messagebox.showerror("Error", f"Failed to change password: {e}", parent=self)
+                            self.custom_messagebox("Error", f"Failed to change password: {e}", parent=self)
                             self.secrets_tree.item(item_id, open=False)
                             return
                 
                 self.savers[db_name] = saver
                 self.schedule_lock(db_name)
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to unlock {db_name}: {e}")
+                self.custom_messagebox("Error", f"Failed to unlock {db_name}: {e}")
                 self.secrets_tree.item(item_id, open=False)
                 return
                 
@@ -365,7 +451,7 @@ class SecretsGUI(tk.Tk):
         else:
             selection = self.secrets_tree.selection()
             if not selection:
-                messagebox.showinfo("Select", "Please select a database or group to add a secret to.")
+                self.custom_messagebox("Select", "Please select a database or group to add a secret to.")
                 return
                 
             item_id = selection[0]
@@ -377,7 +463,7 @@ class SecretsGUI(tk.Tk):
                 preset_group = self.secrets_tree.item(item_id, "text")
             
         if db_name not in self.savers:
-            messagebox.showinfo("Unlock", f"Please expand and unlock '{db_name}' first.")
+            self.custom_messagebox("Unlock", f"Please expand and unlock '{db_name}' first.")
             return
             
         saver = self.savers[db_name]
@@ -388,12 +474,13 @@ class SecretsGUI(tk.Tk):
             
         top = tk.Toplevel(self)
         top.title(f"Add Secret to {db_name}")
-        
+
         x = self.winfo_x() + (self.winfo_width() // 2) - 150
         y = self.winfo_y() + (self.winfo_height() // 2) - 135
         top.geometry(f"300x270+{x}+{y}")
         top.transient(self)
         top.grab_set()
+        self.apply_window_style(top)
 
         tk.Label(top, text="Secret Name:").pack(pady=(10, 0))
         name_entry = tk.Entry(top, width=30)
@@ -421,23 +508,23 @@ class SecretsGUI(tk.Tk):
             url = url_entry.get().strip()
             value = value_entry.get()
             if not name:
-                messagebox.showwarning("Warning", "Secret Name is required", parent=top)
+                self.custom_messagebox("Warning", "Secret Name is required", parent=top)
                 return
                 
             # Prevent duplicates within the same group
             if any(s["name"] == name and s["group"] == group for s in saver.list_secrets()):
-                messagebox.showwarning("Warning", f"A secret named '{name}' already exists in group '{group}' in this file. Please choose a different name.", parent=top)
+                self.custom_messagebox("Warning", f"A secret named '{name}' already exists in group '{group}' in this file. Please choose a different name.", parent=top)
                 return
                 
             if not value:
-                messagebox.showwarning("Warning", "Value is required", parent=top)
+                self.custom_messagebox("Warning", "Value is required", parent=top)
                 return
             try:
                 saver.set_secret(name, value, group, url)
                 self.refresh_list()
                 top.destroy()
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to save secret: {e}", parent=top)
+                self.custom_messagebox("Error", f"Failed to save secret: {e}", parent=top)
 
         tk.Button(top, text="Save", command=save).pack(pady=15)
 
@@ -470,7 +557,7 @@ class SecretsGUI(tk.Tk):
                         saver._data = None
                         self.schedule_clipboard_clear()
                     except Exception as e:
-                        messagebox.showerror("Error", f"Failed to open URL or copy secret: {e}")
+                        self.custom_messagebox("Error", f"Failed to open URL or copy secret: {e}")
                     return
                 elif "secret" in tags:
                     db_name = tags[1]
@@ -489,7 +576,7 @@ class SecretsGUI(tk.Tk):
                         saver._data = None
                         self.schedule_clipboard_clear()
                     except Exception as e:
-                        messagebox.showerror("Error", f"Failed to get secret: {e}")
+                        self.custom_messagebox("Error", f"Failed to get secret: {e}")
 
     def schedule_clipboard_clear(self):
         if self.clipboard_timer:
@@ -572,7 +659,7 @@ class SecretsGUI(tk.Tk):
         try:
             value = saver.get_secret(name, group)
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to get secret: {e}")
+            self.custom_messagebox("Error", f"Failed to get secret: {e}")
             return
             
         # find URL if it exists
@@ -589,12 +676,13 @@ class SecretsGUI(tk.Tk):
             
         top = tk.Toplevel(self)
         top.title(f"Edit Secret in {db_name}")
-        
+
         x = self.winfo_x() + (self.winfo_width() // 2) - 150
         y = self.winfo_y() + (self.winfo_height() // 2) - 135
         top.geometry(f"300x270+{x}+{y}")
         top.transient(self)
         top.grab_set()
+        self.apply_window_style(top)
 
         tk.Label(top, text="Secret Name:").pack(pady=(10, 0))
         name_entry = tk.Entry(top, width=30)
@@ -622,15 +710,15 @@ class SecretsGUI(tk.Tk):
             new_url = url_entry.get().strip()
             new_value = value_entry.get()
             if not new_name:
-                messagebox.showwarning("Warning", "Secret Name is required", parent=top)
+                self.custom_messagebox("Warning", "Secret Name is required", parent=top)
                 return
                 
             if (new_name != name or new_group != group) and any(s["name"] == new_name and s["group"] == new_group for s in saver.list_secrets()):
-                messagebox.showwarning("Warning", f"A secret named '{new_name}' already exists in group '{new_group}' in this file. Please choose a different name.", parent=top)
+                self.custom_messagebox("Warning", f"A secret named '{new_name}' already exists in group '{new_group}' in this file. Please choose a different name.", parent=top)
                 return
                 
             if not new_value:
-                messagebox.showwarning("Warning", "Value is required", parent=top)
+                self.custom_messagebox("Warning", "Value is required", parent=top)
                 return
             try:
                 if new_name != name or new_group != group:
@@ -639,14 +727,14 @@ class SecretsGUI(tk.Tk):
                 self.refresh_list()
                 top.destroy()
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to save secret: {e}", parent=top)
+                self.custom_messagebox("Error", f"Failed to save secret: {e}", parent=top)
 
         tk.Button(top, text="Save", command=save).pack(pady=15)
 
     def force_password_reset_next_use(self, db_name):
         if db_name not in self.savers:
             self.update()
-            pwd = simpledialog.askstring("Unlock", f"Enter password for {db_name} to modify settings:", show="*", parent=self)
+            pwd = self.custom_askstring("Unlock", f"Enter password for {db_name} to modify settings:", show="*", parent=self)
             if not pwd:
                 return
             try:
@@ -655,25 +743,25 @@ class SecretsGUI(tk.Tk):
                 self.savers[db_name] = saver
                 self.schedule_lock(db_name)
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to unlock {db_name}: {e}", parent=self)
+                self.custom_messagebox("Error", f"Failed to unlock {db_name}: {e}", parent=self)
                 return
 
         try:
             self.savers[db_name].set_config("change_password", True)
-            messagebox.showinfo("Success", f"Password change will be forced on next use for '{db_name}'.", parent=self)
+            self.custom_messagebox("Success", f"Password change will be forced on next use for '{db_name}'.", parent=self)
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to update settings for {db_name}: {e}", parent=self)
+            self.custom_messagebox("Error", f"Failed to update settings for {db_name}: {e}", parent=self)
 
     def delete_secret(self):
         selection = self.secrets_tree.selection()
         if not selection:
-            messagebox.showinfo("Select", "Please select a secret to delete.")
+            self.custom_messagebox("Select", "Please select a secret to delete.")
             return
             
         item_id = selection[0]
         tags = self.secrets_tree.item(item_id, "tags")
         if not tags or ("secret" not in tags and "url" not in tags):
-            messagebox.showinfo("Select", "Please select a specific secret.")
+            self.custom_messagebox("Select", "Please select a specific secret.")
             return
 
         if "url" in tags:
@@ -686,12 +774,12 @@ class SecretsGUI(tk.Tk):
         parent_id = self.secrets_tree.parent(item_id)
         group = self.secrets_tree.item(parent_id, "text")
         
-        if messagebox.askyesno("Confirm", f"Are you sure you want to delete the secret '{name}' from '{group}'?"):
+        if self.custom_messagebox("Confirm", f"Are you sure you want to delete the secret '{name}' from '{group}'?", box_type="askyesno"):
             try:
                 self.savers[db_name].delete_secret(name, group)
                 self.refresh_list()
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to delete secret: {e}")
+                self.custom_messagebox("Error", f"Failed to delete secret: {e}")
 
     def import_csv(self):
         filepath = filedialog.askopenfilename(
@@ -701,7 +789,7 @@ class SecretsGUI(tk.Tk):
         if not filepath: return
         
         # Ask for target .ep or default to new
-        target_db = simpledialog.askstring("Import", "Enter the name of the database to import into (e.g. 'main.ep'):\n(If it doesn't exist, it will be created)", initialvalue="imported.ep")
+        target_db = self.custom_askstring("Import", "Enter the name of the database to import into (e.g. 'main.ep'):\n(If it doesn't exist, it will be created)", initialvalue="imported.ep")
         if not target_db: return
         if not target_db.endswith(".ep"): target_db += ".ep"
         
@@ -709,7 +797,7 @@ class SecretsGUI(tk.Tk):
         if target_db in self.savers:
             saver = self.savers[target_db]
         else:
-            pwd = simpledialog.askstring("Import", f"Enter password for {target_db}:", show="*")
+            pwd = self.custom_askstring("Import", f"Enter password for {target_db}:", show="*")
             if not pwd: return
             try:
                 saver = SecretsSaver(filename=target_db, key=pwd)
@@ -717,7 +805,7 @@ class SecretsGUI(tk.Tk):
                 self.savers[target_db] = saver
                 self.schedule_lock(target_db)
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to open/create {target_db}: {e}")
+                self.custom_messagebox("Error", f"Failed to open/create {target_db}: {e}")
                 return
 
         try:
@@ -743,10 +831,10 @@ class SecretsGUI(tk.Tk):
                         self.show_toast(f"Importing: {count} secrets processed...")
                         self.update()
                     
-            messagebox.showinfo("Success", f"Successfully imported {count} secrets into {target_db}.")
+            self.custom_messagebox("Success", f"Successfully imported {count} secrets into {target_db}.")
             self.refresh_list()
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to parse CSV: {e}")
+            self.custom_messagebox("Error", f"Failed to parse CSV: {e}")
 
     def export_group(self):
         selection = self.secrets_tree.selection()
@@ -772,16 +860,16 @@ class SecretsGUI(tk.Tk):
                     secrets_to_export.append((db_name, group_name, secret_name))
         
         if not dbs_to_export and not groups_to_export and not secrets_to_export:
-            messagebox.showinfo("Select", "Please select at least one database, group, or secret to export (use Ctrl+Click to select multiple).")
+            self.custom_messagebox("Select", "Please select at least one database, group, or secret to export (use Ctrl+Click to select multiple).")
             return
 
         # Ensure all selected DBs to export wholly are unlocked
         for db_name in dbs_to_export:
             if db_name not in self.savers:
                 self.update()
-                pwd = simpledialog.askstring("Unlock", f"Please unlock {db_name} for exporting:", show="*", parent=self)
+                pwd = self.custom_askstring("Unlock", f"Please unlock {db_name} for exporting:", show="*", parent=self)
                 if not pwd:
-                    messagebox.showwarning("Warning", f"Export cancelled because {db_name} was not unlocked.", parent=self)
+                    self.custom_messagebox("Warning", f"Export cancelled because {db_name} was not unlocked.", parent=self)
                     return
                 try:
                     saver = SecretsSaver(filename=db_name, key=pwd)
@@ -800,7 +888,7 @@ class SecretsGUI(tk.Tk):
                                 self.secrets_tree.item(item, open=True)
                             break
                 except Exception as e:
-                    messagebox.showerror("Error", f"Failed to unlock {db_name}: {e}")
+                    self.custom_messagebox("Error", f"Failed to unlock {db_name}: {e}")
                     return
 
         filepath = filedialog.asksaveasfilename(
@@ -813,7 +901,7 @@ class SecretsGUI(tk.Tk):
             return
             
         self.update()
-        export_key = simpledialog.askstring(
+        export_key = self.custom_askstring(
             "Export Key", 
             "Enter a password to encrypt the newly exported file:", 
             show="*",
@@ -821,7 +909,7 @@ class SecretsGUI(tk.Tk):
         )
         
         if not export_key:
-            messagebox.showwarning("Warning", "Export cancelled. A password is required.", parent=self)
+            self.custom_messagebox("Warning", "Export cancelled. A password is required.", parent=self)
             return
             
         try:
@@ -894,10 +982,10 @@ class SecretsGUI(tk.Tk):
             # Force password change on exported file
             exporter.set_config("change_password", True)
             
-            messagebox.showinfo("Success", f"Successfully exported {count} items.")
+            self.custom_messagebox("Success", f"Successfully exported {count} items.")
             self.refresh_list() # refresh so the newly created .ep file shows up as a top level folder
         except Exception as e:
-            messagebox.showerror("Export Error", f"Failed to export: {e}")
+            self.custom_messagebox("Export Error", f"Failed to export: {e}")
 
     def change_password(self, preset_db=None):
         if preset_db:
@@ -905,7 +993,7 @@ class SecretsGUI(tk.Tk):
         else:
             selection = self.secrets_tree.selection()
             if not selection:
-                messagebox.showinfo("Select", "Please select a database or an item inside it to change its password.")
+                self.custom_messagebox("Select", "Please select a database or an item inside it to change its password.")
                 return
 
             item_id = selection[0]
@@ -916,40 +1004,40 @@ class SecretsGUI(tk.Tk):
             db_name = tags[1]
             
         if db_name not in self.savers:
-            messagebox.showinfo("Unlock", f"Please expand and unlock '{db_name}' first.")
+            self.custom_messagebox("Unlock", f"Please expand and unlock '{db_name}' first.")
             return
 
         saver = self.savers[db_name]
 
         self.update()
-        old_pwd = simpledialog.askstring("Change Password", f"Enter OLD password for {db_name}:", show="*", parent=self)
+        old_pwd = self.custom_askstring("Change Password", f"Enter OLD password for {db_name}:", show="*", parent=self)
         if not old_pwd:
             return
 
         if old_pwd.encode('utf-8') != saver._key:
-            messagebox.showerror("Error", "Incorrect old password.", parent=self)
+            self.custom_messagebox("Error", "Incorrect old password.", parent=self)
             return
 
         while True:
             self.update()
-            new_pwd = simpledialog.askstring("Change Password", f"Enter NEW password for {db_name}:", show="*", parent=self)
+            new_pwd = self.custom_askstring("Change Password", f"Enter NEW password for {db_name}:", show="*", parent=self)
             if not new_pwd:
                 return
 
-            confirm_pwd = simpledialog.askstring("Change Password", f"Confirm NEW password for {db_name}:", show="*", parent=self)
+            confirm_pwd = self.custom_askstring("Change Password", f"Confirm NEW password for {db_name}:", show="*", parent=self)
             if new_pwd != confirm_pwd:
-                messagebox.showwarning("Warning", "Passwords do not match! Try again.", parent=self)
+                self.custom_messagebox("Warning", "Passwords do not match! Try again.", parent=self)
                 continue
 
             try:
                 self.savers[db_name].change_key(new_pwd)
-                messagebox.showinfo("Success", f"Password for {db_name} changed successfully.", parent=self)
+                self.custom_messagebox("Success", f"Password for {db_name} changed successfully.", parent=self)
                 break
             except ValueError as ve:
-                messagebox.showerror("Error", str(ve), parent=self)
+                self.custom_messagebox("Error", str(ve), parent=self)
                 continue
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to change password: {e}", parent=self)
+                self.custom_messagebox("Error", f"Failed to change password: {e}", parent=self)
                 break
 
     def merge_dbs(self):
@@ -961,16 +1049,16 @@ class SecretsGUI(tk.Tk):
                 db_names.append(tags[1])
                 
         if len(db_names) < 2:
-            messagebox.showinfo("Select", "Please select at least two database (.ep) folders to merge (use Ctrl+Click to select multiple).")
+            self.custom_messagebox("Select", "Please select at least two database (.ep) folders to merge (use Ctrl+Click to select multiple).")
             return
             
         # Ensure all selected DBs are unlocked
         for db_name in db_names:
             if db_name not in self.savers:
                 self.update()
-                pwd = simpledialog.askstring("Unlock", f"Please unlock {db_name} for merging:", show="*", parent=self)
+                pwd = self.custom_askstring("Unlock", f"Please unlock {db_name} for merging:", show="*", parent=self)
                 if not pwd:
-                    messagebox.showwarning("Warning", f"Merge cancelled because {db_name} was not unlocked.", parent=self)
+                    self.custom_messagebox("Warning", f"Merge cancelled because {db_name} was not unlocked.", parent=self)
                     return
                 try:
                     saver = SecretsSaver(filename=db_name, key=pwd)
@@ -989,7 +1077,7 @@ class SecretsGUI(tk.Tk):
                                 self.secrets_tree.item(item, open=True)
                             break
                 except Exception as e:
-                    messagebox.showerror("Error", f"Failed to unlock {db_name}: {e}", parent=self)
+                    self.custom_messagebox("Error", f"Failed to unlock {db_name}: {e}", parent=self)
                     return
                     
         # Ask for new file
@@ -1002,9 +1090,9 @@ class SecretsGUI(tk.Tk):
         
         # Ask for password for merged DB
         self.update()
-        merge_key = simpledialog.askstring("Merge Key", f"Enter a password to encrypt the new merged file '{os.path.basename(filepath)}':", show="*", parent=self)
+        merge_key = self.custom_askstring("Merge Key", f"Enter a password to encrypt the new merged file '{os.path.basename(filepath)}':", show="*", parent=self)
         if not merge_key:
-            messagebox.showwarning("Warning", "Merge cancelled. A password is required.")
+            self.custom_messagebox("Warning", "Merge cancelled. A password is required.")
             return
             
         try:
@@ -1030,10 +1118,10 @@ class SecretsGUI(tk.Tk):
                     merged_identifiers.add((grp, final_name))
                     count += 1
                     
-            messagebox.showinfo("Success", f"Successfully merged {count} secrets into '{os.path.basename(filepath)}'.")
+            self.custom_messagebox("Success", f"Successfully merged {count} secrets into '{os.path.basename(filepath)}'.")
             self.refresh_list()
         except Exception as e:
-            messagebox.showerror("Merge Error", f"Failed to merge databases: {e}")
+            self.custom_messagebox("Merge Error", f"Failed to merge databases: {e}")
 
     def forget_all(self):
         if not self.savers:
