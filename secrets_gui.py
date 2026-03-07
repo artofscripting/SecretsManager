@@ -26,12 +26,42 @@ except ImportError:
     HAS_PYSTRAY = False
 
 class SecretsGUI(tk.Tk):
-    def __init__(self, timeout_minutes=60.0):
+    def __init__(self, timeout_minutes=60.0, dark_mode=False):
         super().__init__()
         self.timeout_minutes = timeout_minutes
+        self.dark_mode = dark_mode
         self.title("Secrets Manager")
         self.geometry("600x450")
         
+        # Color Theme configurations
+        self.bg_color = "#2b2b2b" if self.dark_mode else "SystemButtonFace"
+        self.fg_color = "white" if self.dark_mode else "black"
+        self.entry_bg = "#3c3f41" if self.dark_mode else "white"
+        self.button_bg = "#3c3f41" if self.dark_mode else "SystemButtonFace"
+        self.tree_bg = "#2b2b2b" if self.dark_mode else "white"
+        
+        self.configure(bg=self.bg_color)
+        if self.dark_mode:
+            self.option_add("*background", self.bg_color)
+            self.option_add("*foreground", self.fg_color)
+            self.option_add("*Entry.background", self.entry_bg)
+            self.option_add("*Entry.insertBackground", self.fg_color)
+            self.option_add("*Button.background", self.button_bg)
+            self.option_add("*Toplevel.background", self.bg_color)
+            self.option_add("*Menu.background", self.bg_color)
+            self.option_add("*Menu.foreground", self.fg_color)
+            
+            # Attempt to set dark mode on the Windows titlebar
+            try:
+                import ctypes
+                self.update_idletasks() # Ensure Window has been drawn
+                hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
+                DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+                value = ctypes.c_int(1)
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ctypes.byref(value), ctypes.sizeof(value))
+            except Exception:
+                pass
+
         try:
             self.iconbitmap(resource_path("favicon.ico"))
         except tk.TclError:
@@ -47,21 +77,49 @@ class SecretsGUI(tk.Tk):
         if HAS_PYSTRAY:
             self.protocol('WM_DELETE_WINDOW', self.hide_window)
         
-        # UI Elements for Main App
-        self.main_frame = tk.Frame(self)
-        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Custom Menu Bar
+        menubar_frame = tk.Frame(self, bg=self.bg_color)
+        menubar_frame.pack(fill=tk.X, side=tk.TOP, anchor="nw")
         
+        file_menubtn = tk.Menubutton(menubar_frame, text="File", bg=self.bg_color, fg=self.fg_color, activebackground=self.button_bg, activeforeground=self.fg_color, padx=10, pady=2)
+        file_menubtn.pack(side=tk.LEFT)
+        
+        file_menu = tk.Menu(file_menubtn, tearoff=0, bg=self.bg_color, fg=self.fg_color, activebackground=self.button_bg, activeforeground=self.fg_color)
+        file_menu.add_command(label="Import CSV", command=self.import_csv)
+        file_menu.add_command(label="Export Selection / Group", command=self.export_group)
+        file_menubtn.config(menu=file_menu)
+
+        # UI Elements for Main App
+        self.main_frame = tk.Frame(self, bg=self.bg_color)
+        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
         # Search Bar
-        search_frame = tk.Frame(self.main_frame)
+        search_frame = tk.Frame(self.main_frame, bg=self.bg_color)
         search_frame.pack(fill=tk.X, pady=(0, 5))
-        tk.Label(search_frame, text="Search:").pack(side=tk.LEFT)
+        tk.Label(search_frame, text="Search:", bg=self.bg_color, fg=self.fg_color).pack(side=tk.LEFT)
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", lambda *args: self.on_search())
-        tk.Entry(search_frame, textvariable=self.search_var).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        search_entry = tk.Entry(search_frame, textvariable=self.search_var, bg=self.entry_bg, fg=self.fg_color, insertbackground=self.fg_color)
+        search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
 
-        tree_frame = tk.Frame(self.main_frame)
+        tree_frame = tk.Frame(self.main_frame, bg=self.bg_color)
         tree_frame.pack(pady=10, fill=tk.BOTH, expand=True)
-        
+
+        if self.dark_mode:
+            style = ttk.Style()
+            style.theme_use('clam')
+            style.configure("Treeview", 
+                            background=self.tree_bg,
+                            foreground=self.fg_color,
+                            fieldbackground=self.tree_bg)
+            style.map('Treeview', background=[('selected', '#005a9e')])
+            
+            style.configure("Treeview.Heading", background=self.button_bg, foreground=self.fg_color, borderwidth=1)
+            style.map("Treeview.Heading", background=[('active', self.entry_bg)])
+            
+            style.configure("Vertical.TScrollbar", background=self.button_bg, troughcolor=self.bg_color, arrowcolor=self.fg_color, bordercolor=self.bg_color)
+            style.map("Vertical.TScrollbar", background=[('active', self.entry_bg)])
+
         tree_scroll = ttk.Scrollbar(tree_frame)
         tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
@@ -75,33 +133,31 @@ class SecretsGUI(tk.Tk):
         self.secrets_tree.bind("<Button-3>", self.on_right_click)
         
         # Configure styles
-        self.secrets_tree.tag_configure("locked_db", foreground="gray")
-        self.secrets_tree.tag_configure("unlocked_db", background="light green", foreground="black")
-        self.secrets_tree.tag_configure("locked_dummy", background="#f7e0e0", foreground="grey")
-        self.secrets_tree.tag_configure("search_result", background="light blue", foreground="black")
+        if self.dark_mode:
+            self.secrets_tree.tag_configure("locked_db", foreground="gray")
+            self.secrets_tree.tag_configure("unlocked_db", background="#1e3b20", foreground="white")
+            self.secrets_tree.tag_configure("locked_dummy", background="#4a2323", foreground="gray")
+            self.secrets_tree.tag_configure("search_result", background="#1d3a5a", foreground="white")
+        else:
+            self.secrets_tree.tag_configure("locked_db", foreground="gray")
+            self.secrets_tree.tag_configure("unlocked_db", background="light green", foreground="black")
+            self.secrets_tree.tag_configure("locked_dummy", background="#f7e0e0", foreground="grey")
+            self.secrets_tree.tag_configure("search_result", background="light blue", foreground="black")
 
         # Key bindings
         self.secrets_tree.bind("<Delete>", lambda e: self.on_delete_key())
         self.bind("<Control-a>", lambda e: self.add_secret())
         self.bind("<Control-A>", lambda e: self.add_secret())
 
-        # Menu Bar
-        menubar = tk.Menu(self)
-        file_menu = tk.Menu(menubar, tearoff=0)
-        file_menu.add_command(label="Import CSV", command=self.import_csv)
-        file_menu.add_command(label="Export Selection / Group", command=self.export_group)
-        menubar.add_cascade(label="File", menu=file_menu)
-        self.config(menu=menubar)
-
-        btn_frame = tk.Frame(self.main_frame)
+        btn_frame = tk.Frame(self.main_frame, bg=self.bg_color)
         btn_frame.pack(fill=tk.X, pady=(10, 0))
 
-        tk.Button(btn_frame, text="Quit", command=self.do_quit).pack(side=tk.RIGHT, padx=5)
-        tk.Button(btn_frame, text="Lock", command=self.forget_all).pack(side=tk.RIGHT, padx=5)
+        tk.Button(btn_frame, text="Quit", command=self.do_quit, bg=self.button_bg, fg=self.fg_color).pack(side=tk.RIGHT, padx=5)
+        tk.Button(btn_frame, text="Lock", command=self.forget_all, bg=self.button_bg, fg=self.fg_color).pack(side=tk.RIGHT, padx=5)
 
         self.status_var = tk.StringVar()
         self.status_var.set("All databases locked.")
-        self.status_bar = tk.Label(btn_frame, textvariable=self.status_var, anchor=tk.W, fg="gray")
+        self.status_bar = tk.Label(btn_frame, textvariable=self.status_var, anchor=tk.W, fg="gray", bg=self.bg_color)
         self.status_bar.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         self.refresh_list()
@@ -457,7 +513,7 @@ class SecretsGUI(tk.Tk):
             if tags:
                 if "db" in tags:
                     db_name = tags[1]
-                    menu = tk.Menu(self, tearoff=0)
+                    menu = tk.Menu(self, tearoff=0, bg=self.bg_color, fg=self.fg_color)
                     menu.add_command(label="Add Secret", command=lambda: self.add_secret(preset_db=db_name))
                     menu.add_command(label="Change Password", command=lambda: self.change_password(preset_db=db_name))
                     menu.add_command(label="Force Password Reset on Next Use", command=lambda: self.force_password_reset_next_use(db_name))
@@ -465,11 +521,11 @@ class SecretsGUI(tk.Tk):
                 elif "group" in tags:
                     db_name = tags[1]
                     group_name = self.secrets_tree.item(item_id, "text")
-                    menu = tk.Menu(self, tearoff=0)
+                    menu = tk.Menu(self, tearoff=0, bg=self.bg_color, fg=self.fg_color)
                     menu.add_command(label="Add Secret", command=lambda: self.add_secret(preset_db=db_name, preset_group=group_name))
                     menu.post(event.x_root, event.y_root)
                 elif "secret" in tags or "url" in tags:
-                    menu = tk.Menu(self, tearoff=0)
+                    menu = tk.Menu(self, tearoff=0, bg=self.bg_color, fg=self.fg_color)
                     menu.add_command(label="Edit Secret", command=self.edit_secret)
                     menu.add_command(label="Delete Secret", command=self.delete_secret)
                     menu.post(event.x_root, event.y_root)
@@ -1028,6 +1084,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Secrets Manager GUI")
     parser.add_argument("--timeout", type=float, default=60.0, help="Custom lock timeout in minutes")
     parser.add_argument("--example-csv", action="store_true", help="Outputs a sample import CSV and quits")
+    parser.add_argument("--dark-mode", action="store_true", help="Launch the application in Dark Mode")
     args = parser.parse_args()
 
     if args.example_csv:
@@ -1037,5 +1094,5 @@ if __name__ == "__main__":
         print("Created import_sample.csv")
         sys.exit(0)
 
-    app = SecretsGUI(timeout_minutes=args.timeout)
+    app = SecretsGUI(timeout_minutes=args.timeout, dark_mode=args.dark_mode)
     app.mainloop()
