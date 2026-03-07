@@ -1,4 +1,5 @@
 import argparse
+import sys
 import tkinter as tk
 from tkinter import messagebox, filedialog, simpledialog, ttk
 import glob
@@ -7,6 +8,15 @@ import time
 import csv
 import webbrowser
 from secrets_saver import SecretsSaver
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 try:
     import pystray
@@ -23,7 +33,7 @@ class SecretsGUI(tk.Tk):
         self.geometry("600x450")
         
         try:
-            self.iconbitmap("favicon.ico")
+            self.iconbitmap(resource_path("favicon.ico"))
         except tk.TclError:
             pass # Fallback to default if icon is completely missing/invalid
         
@@ -979,7 +989,7 @@ class SecretsGUI(tk.Tk):
 
     def create_image(self):
         try:
-            return Image.open("favicon.ico")
+            return Image.open(resource_path("favicon.ico"))
         except FileNotFoundError:
             # Fallback to simple icon if not found
             image = Image.new('RGB', (64, 64), color=(43, 43, 43))
