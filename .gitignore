@@ -12,7 +12,6 @@ pyvenv.cfg
 
 # Build outputs
 build/
-dist/
 linux_cli/build/
 *.egg-info/
 
