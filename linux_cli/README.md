@@ -69,6 +69,7 @@ This exports a Linux executable named `harbor-cli` into your current directory.
 ## Notes
 
 - Master passwords are always prompted securely via `getpass`.
+- README examples do not hard-code master keys; they always rely on prompt-based input.
 - The CLI does not accept master passwords as command-line arguments.
 - Secret values for `set` are also prompted securely and never passed as command-line arguments.
 - Commands other than `init` require an existing vault path and will error if the file does not exist.

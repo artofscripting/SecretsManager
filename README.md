@@ -175,10 +175,12 @@ docker rm harbor-cli-export
 You can also use the `SecretsSaver` class directly in your own Python scripts:
 
 ```python
+import getpass
 from secrets_saver import SecretsSaver
 
-# Initialize with a string key (local file storage)
-saver = SecretsSaver(filename="main.ep", key="my_super_secret_master_password")
+# Always prompt for the master key instead of hard-coding it.
+master_key = getpass.getpass("Master key for main.ep: ")
+saver = SecretsSaver(filename="main.ep", key=master_key)
 
 # Store a secret under a specific group
 saver.set_secret(name="API_KEY", value="abc123xyz", group="Development", url="https://api.domain.com")
@@ -192,7 +194,13 @@ print(saver.list_secrets())
 
 To use a remote database, pass a SQLAlchemy-compatible Database URL:
 ```python
-saver = SecretsSaver(db_url="postgresql+psycopg2://user:password@localhost:5432/mydb", key="my_super_secret_master_password")
+import getpass
+
+master_key = getpass.getpass("Master key for remote vault: ")
+saver = SecretsSaver(
+  db_url="postgresql+psycopg2://user:password@localhost:5432/mydb",
+  key=master_key,
+)
 ```
 
 ## Security Note
