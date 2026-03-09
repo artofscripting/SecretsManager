@@ -1,14 +1,35 @@
-.venv/
+# Python bytecode and caches
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.ep
-.Python
-*.csv
-env/
+*.py[cod]
+
+# Virtual environments
+.venv/
 venv/
+env/
 ENV/
-env.bak/
-venv.bak/
-secrets.db
+.Python
+pyvenv.cfg
+
+# Build outputs
+build/
+dist/
+linux_cli/build/
+*.egg-info/
+
+# Test/tool caches
+.pytest_cache/
+.mypy_cache/
+
+# Local editor/OS noise
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Harbor vault exports/secrets
+*.ep
+
+# Native binaries
+*.exe
+*.dll
+*.so
+*.dylib
