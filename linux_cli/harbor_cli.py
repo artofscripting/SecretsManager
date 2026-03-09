@@ -54,7 +54,8 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 def cmd_set(args: argparse.Namespace) -> int:
     saver = _load_saver(args.vault)
-    saver.set_secret(name=args.name, value=args.value, group=args.group, url=args.url)
+    value = getpass.getpass(f"Secret value for {args.group}::{args.name}: ")
+    saver.set_secret(name=args.name, value=value, group=args.group, url=args.url)
     print(f"Saved secret: {args.group}::{args.name}")
     return 0
 
@@ -278,7 +279,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_set = sub.add_parser("set", help="Create or update a secret")
     p_set.add_argument("name", help="Secret name")
-    p_set.add_argument("value", help="Secret value")
     p_set.add_argument("--group", default="Default", help="Group/folder name")
     p_set.add_argument("--url", default="", help="Optional URL metadata")
     p_set.set_defaults(func=cmd_set)
