@@ -87,6 +87,88 @@ options:
 3. **Add Secret:** Press `Ctrl+A`, use the right-click context menu, or use the menu bar to add a Name, Group, Value, and URL.
 4. **Copying:** Double-click a Secret to dynamically copy its value. Double-click a URL to open it while simultaneously copying its corresponding secret.
 
+### Using the Linux CLI
+
+Harbor also includes a Linux-focused command-line interface in `linux_cli/`.
+
+#### CLI Highlights
+
+- Uses the same encrypted `.ep` vault format as the GUI.
+- Always prompts for master passwords (never accepted as command-line arguments).
+- Interactive list mode supports group-first navigation and key reveal.
+- Interactive reveal displays the exact one-line `get` command for the selected secret.
+
+#### Run From Source
+
+From the repository root:
+
+```bash
+python linux_cli/harbor_cli.py --help
+python linux_cli/harbor_cli.py --vault imported.ep list
+```
+
+#### Common Commands
+
+```bash
+# initialize a new vault
+./harbor-cli --vault main.ep init
+
+# add/update a secret
+./harbor-cli --vault main.ep set API_KEY "abc123" --group Dev --url https://example.local
+
+# retrieve a secret value
+./harbor-cli --vault main.ep get API_KEY --group Dev
+
+# list groups or list secrets
+./harbor-cli --vault main.ep groups
+./harbor-cli --vault main.ep list
+./harbor-cli --vault main.ep list --plain
+
+# delete a secret
+./harbor-cli --vault main.ep delete API_KEY --group Dev
+
+# rotate the vault password
+./harbor-cli --vault main.ep change-password
+```
+
+#### Interactive List Controls
+
+- `Up/Down`: Select group first, then select secret
+- `Enter` or `Right`: Open selected group
+- `Enter` (inside group): Reveal selected secret value
+- `Left`: Back to group list
+- `q`: Quit
+
+Use `--plain` to disable interactive mode and print a table.
+
+#### Build Linux Binary
+
+Build on Linux (or inside Linux Docker/VM). PyInstaller cannot cross-build Linux executables from Windows directly.
+
+```bash
+cd linux_cli
+pip install -r requirements.txt
+python build_binary.py
+```
+
+Output binary:
+
+`linux_cli/dist/harbor-cli`
+
+#### Build Linux Binary From Windows/macOS (Docker)
+
+```bash
+docker build -t harbor-cli-linux-builder -f linux_cli/Dockerfile .
+docker create --name harbor-cli-export harbor-cli-linux-builder
+docker cp harbor-cli-export:/workspace/linux_cli/dist/harbor-cli ./harbor-cli
+docker rm harbor-cli-export
+```
+
+#### CLI Safety Notes
+
+- Commands other than `init` require an existing vault path and will fail if the file does not exist.
+- This helps prevent accidental empty vault creation due to filename typos.
+
 ### Using the Library Programmatically
 
 You can also use the `SecretsSaver` class directly in your own Python scripts:
