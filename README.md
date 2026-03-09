@@ -114,7 +114,7 @@ python linux_cli/harbor_cli.py --vault imported.ep list
 ./harbor-cli --vault main.ep init
 
 # add/update a secret
-./harbor-cli --vault main.ep set API_KEY "abc123" --group Dev --url https://example.local
+./harbor-cli --vault main.ep set API_KEY --group Dev --url https://example.local
 
 # retrieve a secret value
 ./harbor-cli --vault main.ep get API_KEY --group Dev
@@ -168,6 +168,7 @@ docker rm harbor-cli-export
 
 - Commands other than `init` require an existing vault path and will fail if the file does not exist.
 - This helps prevent accidental empty vault creation due to filename typos.
+- Secret values are entered via secure prompt during `set` and are not accepted as command-line arguments.
 
 ### Using the Library Programmatically
 

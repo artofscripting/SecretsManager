@@ -11,7 +11,7 @@ The GUI remains unchanged. This CLI is isolated in `linux_cli/` and reuses `secr
 ```bash
 ./harbor-cli --help
 ./harbor-cli --vault main.ep init
-./harbor-cli --vault main.ep set API_KEY "abc123" --group Dev --url https://example.local
+./harbor-cli --vault main.ep set API_KEY --group Dev --url https://example.local
 ./harbor-cli --vault main.ep get API_KEY --group Dev
 ./harbor-cli --vault main.ep list
 ./harbor-cli --vault main.ep list --plain
@@ -70,4 +70,5 @@ This exports a Linux executable named `harbor-cli` into your current directory.
 
 - Master passwords are always prompted securely via `getpass`.
 - The CLI does not accept master passwords as command-line arguments.
+- Secret values for `set` are also prompted securely and never passed as command-line arguments.
 - Commands other than `init` require an existing vault path and will error if the file does not exist.
